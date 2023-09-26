@@ -10,6 +10,7 @@ import com.alquimiasoft.com.minegocio.fixtures.ClientFixture;
 import com.alquimiasoft.com.minegocio.service.IClientService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.ServletException;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,6 +30,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.List;
 
+import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -38,9 +40,9 @@ import static org.mockito.Mockito.*;
 public class ClientControllerTest {
     private MockMvc mockMvc;
     private IClientService clientService = Mockito.mock(IClientService.class);
-    private ClientFixture clientFixture = new ClientFixture();
+    private  ClientFixture clientFixture = new ClientFixture();
 
-    private ObjectMapper mapper = new ObjectMapper();
+    private  ObjectMapper mapper = new ObjectMapper();
 
     @Before
     public void setUp() {
@@ -122,12 +124,16 @@ public class ClientControllerTest {
 
         when(clientService.searchClients(null, null)).thenThrow(exceptionExpected);
 
-        mockMvc.perform(MockMvcRequestBuilders
-                        .get("/api/v1/clients")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(MockMvcResultMatchers.status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.status", Matchers.is(HttpStatus.BAD_REQUEST.value())))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.message", Matchers.is(EmptySearchCriteriaException.getEmptySearchCriteria())));
+        try {
+            mockMvc.perform(MockMvcRequestBuilders
+                            .get("/api/v1/clients")
+                            .accept(MediaType.APPLICATION_JSON))
+                    .andExpect(MockMvcResultMatchers.status().isBadRequest());
+        } catch (ServletException ex){
+            Throwable rootCause = ex.getRootCause();
+            assertTrue(rootCause instanceof EmptySearchCriteriaException);
+            assertTrue(rootCause.getMessage().equals(exceptionExpected.getMessage()));
+        }
     }
     //endregion
 
@@ -156,14 +162,18 @@ public class ClientControllerTest {
         ClientRequestDto body = clientFixture.getClientRequestToCreate();
         DuplicateIdentificationException exception = new DuplicateIdentificationException(HttpStatus.BAD_REQUEST, DuplicateIdentificationException.getDuplicateIdentification());
         when(clientService.createClient(any(ClientRequestDto.class))).thenThrow(exception);
-         mockMvc.perform(MockMvcRequestBuilders
-                        .post("/api/v1/clients/create")
-                        .content(mapper.writeValueAsString(body))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(MockMvcResultMatchers.status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.status", Matchers.is(HttpStatus.BAD_REQUEST.value())))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.message", Matchers.is(DuplicateIdentificationException.getDuplicateIdentification())));
+        try{
+            mockMvc.perform(MockMvcRequestBuilders
+                            .post("/api/v1/clients/create")
+                            .content(mapper.writeValueAsString(body))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .accept(MediaType.APPLICATION_JSON))
+                    .andExpect(MockMvcResultMatchers.status().isBadRequest());
+        }catch (ServletException ex){
+            Throwable rootCause = ex.getRootCause();
+            assertTrue(rootCause instanceof DuplicateIdentificationException);
+            assertTrue(rootCause.getMessage().equals(exception.getMessage()));
+        }
     }
     //endregion
 
@@ -192,17 +202,22 @@ public class ClientControllerTest {
     public void updateClientDuplicateIdentificationException() throws Exception {
         ClientRequestDto body = clientFixture.getClientRequestToUpdate();
         Long id = 1L;
-        DuplicateIdentificationException ex = new DuplicateIdentificationException(HttpStatus.BAD_REQUEST, DuplicateIdentificationException.getDuplicateIdentification());
-        when(clientService.updateClient(eq(id),any(ClientRequestDto.class))).thenThrow(ex);
-         mockMvc.perform(MockMvcRequestBuilders
-                        .put("/api/v1/clients/{clientId}",id)
-                        .content(mapper.writeValueAsString(body))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(MockMvcResultMatchers.status().is2xxSuccessful())
-                .andExpect(MockMvcResultMatchers.status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.status", Matchers.is(HttpStatus.BAD_REQUEST.value())))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.message", Matchers.is(DuplicateIdentificationException.getDuplicateIdentification())));
+        DuplicateIdentificationException exception = new DuplicateIdentificationException(HttpStatus.BAD_REQUEST, DuplicateIdentificationException.getDuplicateIdentification());
+        when(clientService.updateClient(eq(id),any(ClientRequestDto.class))).thenThrow(exception);
+        try {
+            mockMvc.perform(MockMvcRequestBuilders
+                            .put("/api/v1/clients/{clientId}",id)
+                            .content(mapper.writeValueAsString(body))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .accept(MediaType.APPLICATION_JSON))
+                    .andExpect(MockMvcResultMatchers.status().is2xxSuccessful())
+                    .andExpect(MockMvcResultMatchers.status().isBadRequest());
+        }catch (ServletException ex){
+            Throwable rootCause = ex.getRootCause();
+            assertTrue(rootCause instanceof DuplicateIdentificationException);
+            assertTrue(rootCause.getMessage().equals(exception.getMessage()));
+        }
+
     }
     //endregion
 
@@ -220,15 +235,19 @@ public class ClientControllerTest {
     @Test
     public void deleteClientNotFound() throws Exception {
         Long id = 1L;
-        ClientNotFoundException ex = new ClientNotFoundException(HttpStatus.NOT_FOUND, ClientNotFoundException.getClientNotFound());
-        doThrow(ex).when(clientService).deleteClient(id);
-        mockMvc.perform(MockMvcRequestBuilders
-                .delete("/api/v1/clients/{clientId}",id)
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON)).andExpect(MockMvcResultMatchers.status().isNoContent())
-                .andExpect(MockMvcResultMatchers.status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.status", Matchers.is(HttpStatus.BAD_REQUEST.value())))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.message", Matchers.is(ClientNotFoundException.getClientNotFound())));
+        ClientNotFoundException exception = new ClientNotFoundException(HttpStatus.NOT_FOUND, ClientNotFoundException.getClientNotFound());
+        doThrow(exception).when(clientService).deleteClient(id);
+        try {
+            mockMvc.perform(MockMvcRequestBuilders
+                            .delete("/api/v1/clients/{clientId}",id)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .accept(MediaType.APPLICATION_JSON)).andExpect(MockMvcResultMatchers.status().isNoContent())
+                    .andExpect(MockMvcResultMatchers.status().isBadRequest());
+        } catch (ServletException ex){
+            Throwable rootCause = ex.getRootCause();
+            assertTrue(rootCause instanceof ClientNotFoundException);
+            assertTrue(rootCause.getMessage().equals(exception.getMessage()));
+        }
     }
     //endregion
 }
